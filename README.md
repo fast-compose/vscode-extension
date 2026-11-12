@@ -9,7 +9,8 @@
 Renders the previews of the open Kotlin file as you type, powered by
 [Fast Compose](https://github.com/fast-compose/fast-compose).
 
-[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/fast-compose.fast-compose-preview?label=Marketplace&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=fast-compose.fast-compose-preview)
+[![VS Code Marketplace](https://vsmarketplacebadges.dev/version/fast-compose.fast-compose-preview.svg?label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=fast-compose.fast-compose-preview)
+[![Installs](https://vsmarketplacebadges.dev/installs-short/fast-compose.fast-compose-preview.svg?label=Installs)](https://marketplace.visualstudio.com/items?itemName=fast-compose.fast-compose-preview)
 [![Open VSX](https://img.shields.io/open-vsx/v/fast-compose/fast-compose-preview?label=Open%20VSX)](https://open-vsx.org/extension/fast-compose/fast-compose-preview)
 [![Fast Compose](https://img.shields.io/maven-central/v/io.github.fast-compose/fast-compose?label=Fast%20Compose)](https://central.sonatype.com/namespace/io.github.fast-compose)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -19,6 +20,8 @@ Renders the previews of the open Kotlin file as you type, powered by
 </div>
 
 ---
+
+https://github.com/user-attachments/assets/9e300da4-12b5-49ac-9d05-54a08a7993e9
 
 ## Install
 
@@ -120,6 +123,11 @@ matching the versions Fast Compose is built with. It needs no JDK, Android SDK o
 The extension sends the active file's text to the webview, which renders it. The webview asks the extension for other
 files, folders, resources and network images, to open files, copy text and save its settings. The extension reports
 changed Kotlin, resource and Gradle files to it.
+
+## Roadmap
+
+- **PNG export:** save a preview as an image for CI snapshots, PR comments and AI agents (through
+  [compose-cli](https://github.com/fast-compose/compose-cli)), on top of live previews, not instead of them.
 
 ## Run
 
