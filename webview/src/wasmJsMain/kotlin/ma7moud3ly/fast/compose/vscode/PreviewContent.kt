@@ -1,0 +1,241 @@
+package ma7moud3ly.fast.compose.vscode
+
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.fromKeyword
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import kotlin.math.pow
+import kotlin.math.roundToInt
+import ma7moud3ly.fast.compose.bindings.resources.ResourceProvider
+import ma7moud3ly.fast.compose.interpreter.SourceProvider
+import ma7moud3ly.fast.compose.ui.rememberComposeCode
+
+/** A request to scroll to the preview of function [name]; each request is a new object, so a repeat scrolls again. */
+class Reveal(val name: String)
+
+/** The previewed file and its current text, written by [PreviewHost]. */
+@Stable
+class PreviewState(isDark: Boolean) {
+    var path: String? by mutableStateOf(null)
+        private set
+    var text: String by mutableStateOf("")
+    var isDark: Boolean by mutableStateOf(isDark)
+
+    /** Images and strings for `R` and `Res`, from the file's module and the workspace's other modules. */
+    var resources: ResourceProvider by mutableStateOf(ResourceProvider.Empty)
+
+    /** Finds declarations from other workspace files for the next file shown; set before [hasPreviews]. */
+    var sources: SourceProvider? = null
+
+    /** Changes on [rebuild], which recreates the preview from the current text and files. */
+    var generation: Int by mutableIntStateOf(0)
+        private set
+
+    /** Recreates the preview: parses the file again, loads the files it uses again and restarts its previews. */
+    fun rebuild() {
+        generation++
+    }
+
+    /** The device whose width previews are laid out at; saved per workspace by the extension. */
+    var device: PreviewDevice by mutableStateOf(PreviewDevice.Phone)
+
+    /** The previews' scale, e.g. 1.5 for 150 %; null is Fit, which scales the device width to the panel's width. */
+    var zoom: Float? by mutableStateOf(null)
+
+    /** The scale Fit gave last; zooming in or out from Fit starts from it. */
+    var fitZoom: Float by mutableFloatStateOf(1f)
+
+    /** Zooms in by 10 % per step, or out with negative [steps], from the current scale. */
+    fun zoomBy(steps: Int) {
+        val current = zoom ?: fitZoom
+        val next = current * 1.1f.pow(steps)
+        zoom = ((next * 100).roundToInt() / 100f).coerceIn(MIN_ZOOM, MAX_ZOOM)
+    }
+
+    /** Height of the logs below the previews, changed by dragging the divider above them; kept across files. */
+    var logsHeight: Dp by mutableStateOf(160.dp)
+
+    /** Whether the logs are shown below the previews; toggled by the user and saved per workspace by the extension. */
+    var showLogs: Boolean by mutableStateOf(false)
+
+    /** The preview to scroll to once it is laid out, e.g. from its CodeLens; cleared after scrolling. */
+    var reveal: Reveal? by mutableStateOf(null)
+
+    /** Whether the file has a `@Preview` annotation; null until checked. Only with true is anything rendered. */
+    var hasPreviews: Boolean? by mutableStateOf(null)
+
+    /**
+     * The message of the error a preview last crashed with; while set, previews are not rendered and the crash shows in
+     * the logs. Set and cleared by the extension, which reloads the webview after a crash.
+     */
+    var crash: String? by mutableStateOf(null)
+
+    fun show(path: String, text: String) {
+        if (path != this.path) hasPreviews = null
+        this.text = text
+        this.path = path
+    }
+
+    /** Shows no file, e.g. when a non-Kotlin file is selected. */
+    fun clear() {
+        path = null
+        text = ""
+        hasPreviews = null
+        reveal = null
+        sources = null
+        resources = ResourceProvider.Empty
+    }
+}
+
+/**
+ * Previews every `@Preview` of [state]'s file, with its logs below while [PreviewState.showLogs]. A file without a
+ * `@Preview` annotation ([PreviewState.hasPreviews] false) is not parsed or rendered at all; only a message is shown,
+ * and nothing is shown until the check is done.
+ */
+@Composable
+fun PreviewContent(state: PreviewState, onOpen: (file: String?, line: Int) -> Unit, onCopy: (String) -> Unit) {
+    MaterialTheme(colorScheme = if (state.isDark) darkColorScheme() else lightColorScheme()) {
+        Surface(Modifier.fillMaxSize()) {
+            val path = state.path
+            if (path == null) {
+                Message("Open a Kotlin file with @Preview functions", Modifier.fillMaxSize())
+            } else {
+                key(path, state.generation) {
+                    when (state.hasPreviews) {
+                        true -> FilePreview(state, path, onOpen, onCopy)
+                        false -> NoPreviews(path, Modifier.fillMaxSize())
+                        null -> Unit
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilePreview(
+    state: PreviewState,
+    path: String,
+    onOpen: (file: String?, line: Int) -> Unit,
+    onCopy: (String) -> Unit,
+) {
+    val code = rememberComposeCode(state.text, path, state.sources)
+    LaunchedEffect(code) {
+        snapshotFlow { state.text }.collect { code.update(it) }
+    }
+    // After a crash the webview is new, and so is this code: report the crash in its logs once, and show them.
+    val crash = state.crash
+    LaunchedEffect(code, crash) {
+        if (crash != null) {
+            code.reportCrash(UncaughtError(crash))
+            state.showLogs = true
+        }
+    }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // The logs can grow until the previews keep only a small strip.
+        val maxLogs = (maxHeight - MIN_PREVIEW_HEIGHT).coerceAtLeast(MIN_LOGS_HEIGHT)
+        Column(Modifier.fillMaxSize()) {
+            val program = code.program
+            when {
+                crash != null -> Message(
+                    "The preview crashed; see the logs. Edit the file or press Refresh to try again.",
+                    Modifier.weight(1f).fillMaxWidth(),
+                )
+
+                program != null && program.previews.isEmpty() -> NoPreviews(path, Modifier.weight(1f).fillMaxWidth())
+                else -> DevicePreviews(state, code, Modifier.weight(1f).fillMaxWidth())
+            }
+            // Shown or hidden only by the user, so the previews don't move as errors and output come and go.
+            if (state.showLogs) {
+                LogsDivider { delta ->
+                    state.logsHeight = (state.logsHeight - delta).coerceIn(MIN_LOGS_HEIGHT, maxLogs)
+                }
+                val logsHeight = state.logsHeight.coerceIn(MIN_LOGS_HEIGHT, maxLogs)
+                PreviewLogs(
+                    code,
+                    Modifier.fillMaxWidth().height(logsHeight),
+                    onOpen,
+                    onCopy,
+                    onHide = { state.showLogs = false },
+                )
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            DeviceBar(
+                state,
+                code,
+                showZoom = crash == null && program?.previews?.isEmpty() != true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/** A thin bar above the logs; dragging it up or down by a distance calls [onDrag] with it, to resize the logs. */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun LogsDivider(onDrag: (Dp) -> Unit) {
+    val density = LocalDensity.current
+    val currentOnDrag by rememberUpdatedState(onDrag)
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(6.dp)
+            .pointerHoverIcon(PointerIcon.fromKeyword("ns-resize"))
+            .draggable(
+                orientation = Orientation.Vertical,
+                state = rememberDraggableState { delta -> currentOnDrag(with(density) { delta.toDp() }) },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    }
+}
+
+/** An error a preview crashed with, as the browser reported it. */
+private class UncaughtError(message: String) : Exception(message)
+
+private val MIN_LOGS_HEIGHT = 48.dp
+private val MIN_PREVIEW_HEIGHT = 80.dp
+
+@Composable
+private fun NoPreviews(path: String, modifier: Modifier) {
+    Message("No @Preview functions in ${path.substringAfterLast('/')}", modifier)
+}
+
+@Composable
+internal fun Message(text: String, modifier: Modifier) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
+}

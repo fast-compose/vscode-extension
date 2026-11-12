@@ -1,0 +1,12 @@
+/* The preview fills the webview; VS Code's default body padding is removed. */
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+}
+
+#preview {
+    position: fixed;
+    inset: 0;
+}

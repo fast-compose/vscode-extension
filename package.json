@@ -1,0 +1,108 @@
+{
+    "name": "fast-compose-preview",
+    "displayName": "Fast Compose Preview",
+    "description": "Instant Jetpack Compose previews in VS Code. No compiler, no build, no waiting.",
+    "version": "0.2.0",
+    "publisher": "fast-compose",
+    "license": "Apache-2.0",
+    "icon": "docs/images/logo.png",
+    "homepage": "https://github.com/fast-compose/vscode-extension",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/fast-compose/vscode-extension.git"
+    },
+    "bugs": {
+        "url": "https://github.com/fast-compose/vscode-extension/issues"
+    },
+    "keywords": [
+        "compose",
+        "jetpack compose",
+        "compose multiplatform",
+        "kotlin multiplatform",
+        "kmp",
+        "kotlin",
+        "android",
+        "preview",
+        "ui preview",
+        "material3"
+    ],
+    "categories": ["Visualization", "Other"],
+    "galleryBanner": {
+        "color": "#1B1F3B",
+        "theme": "dark"
+    },
+    "pricing": "Free",
+    "engines": {
+        "vscode": "^1.100.0"
+    },
+    "main": "./out/extension.js",
+    "activationEvents": [
+        "onWebviewPanel:fastCompose.preview",
+        "onLanguage:kotlin",
+        "workspaceContains:**/*.kt"
+    ],
+    "contributes": {
+        "commands": [
+            {
+                "command": "fastCompose.openPreview",
+                "title": "Open Preview to the Side",
+                "category": "Fast Compose",
+                "icon": "$(open-preview)"
+            },
+            {
+                "command": "fastCompose.revealPreview",
+                "title": "Show Preview",
+                "category": "Fast Compose"
+            },
+            {
+                "command": "fastCompose.refreshPreview",
+                "title": "Refresh Preview",
+                "category": "Fast Compose",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "fastCompose.reportIssue",
+                "title": "Report Issue",
+                "category": "Fast Compose",
+                "icon": "$(report)"
+            }
+        ],
+        "menus": {
+            "commandPalette": [
+                {
+                    "command": "fastCompose.revealPreview",
+                    "when": "false"
+                }
+            ],
+            "editor/title": [
+                {
+                    "command": "fastCompose.openPreview",
+                    "when": "resourceExtname == .kt && activeWebviewPanelId != fastCompose.preview",
+                    "group": "navigation"
+                },
+                {
+                    "command": "fastCompose.refreshPreview",
+                    "when": "activeWebviewPanelId == fastCompose.preview",
+                    "group": "navigation@1"
+                },
+                {
+                    "command": "fastCompose.reportIssue",
+                    "when": "activeWebviewPanelId == fastCompose.preview",
+                    "group": "navigation@2"
+                }
+            ]
+        }
+    },
+    "scripts": {
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "vscode:prepublish": "npm run compile",
+        "package": "vsce package"
+    },
+    "devDependencies": {
+        "@types/node": "^22.0.0",
+        "@types/vscode": "^1.100.0",
+        "@vscode/vsce": "^3.0.0",
+        "typescript": "^5.9.0"
+    }
+}

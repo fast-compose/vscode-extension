@@ -1,0 +1,13 @@
+src/**
+webview/**
+out/**/*.map
+dist/**/*.map
+docs/**
+!docs/images/logo.png
+.github/**
+.vscode/**
+.claude/**
+.editorconfig
+.gitignore
+tsconfig.json
+**/*.vsix

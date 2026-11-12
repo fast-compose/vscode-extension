@@ -1,0 +1,107 @@
+name: Build & Release Fast Compose Preview
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---- Build and package, for pushes and pull requests; publish for tags like v0.1.0 ----
+  build:
+    name: Build and release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # GitHub's OIDC token, which the Marketplace's Trusted Publishing policy accepts instead of a token secret.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # The tag must match the extension version, so v0.1.0 publishes 0.1.0.
+      - name: Check tag matches version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "${GITHUB_REF_NAME}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match version $version"
+            exit 1
+          fi
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: 21
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      # gradlew is not executable in git, since it was added on Windows.
+      - run: chmod +x webview/gradlew
+
+      - name: Build the webview
+        working-directory: webview
+        run: ./gradlew installWebview --stacktrace
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Compiles the extension and writes fast-compose-preview-<version>.vsix.
+      - name: Package the extension
+        run: npx vsce package
+
+      - name: Upload the extension
+        uses: actions/upload-artifact@v7
+        with:
+          name: extension
+          path: "*.vsix"
+          retention-days: 7
+
+      - name: Upload reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports
+          path: webview/build/reports/
+          retention-days: 7
+
+      - name: Publish to the VS Code Marketplace
+        if: startsWith(github.ref, 'refs/tags/')
+        run: npx --yes @vscode/vsce@latest publish --oidc --packagePath *.vsix
+
+      - name: Publish to Open VSX
+        if: startsWith(github.ref, 'refs/tags/')
+        run: npx --yes ovsx publish *.vsix
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
+      # Titled with the bare version, so v0.1.0 is released as 0.1.0.
+      - name: Name the release
+        if: startsWith(github.ref, 'refs/tags/')
+        run: echo "RELEASE_NAME=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+
+      # Created after publishing, so a release only exists for published versions.
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ env.RELEASE_NAME }}
+          generate_release_notes: true
+          files: "*.vsix"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

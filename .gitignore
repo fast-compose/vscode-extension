@@ -1,0 +1,23 @@
+# Node and the extension's build
+node_modules/
+out/
+dist/
+*.vsix
+
+# Gradle and Kotlin
+.gradle/
+.kotlin/
+**/build/
+
+# Local configuration
+local.properties
+.env
+
+# IDEs
+.idea/
+*.iml
+.fleet/
+.vscode-test/
+
+# Claude Code local settings
+.claude/settings.local.json
