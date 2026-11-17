@@ -37,7 +37,10 @@ bar, or run **Fast Compose: Open Preview to the Side** from the Command Palette.
   the preview is focused open in another group.
 - Follows the active Kotlin editor and its unsaved text. Selecting another file shows that file's previews, or none;
   a previous file's preview is never kept.
-- **Preview** above every `@Preview` function opens the preview and scrolls to that function's preview.
+- One preview per `@Preview`, per `@Preview` of a multi-preview annotation (AndroidX's `@PreviewLightDark`,
+  `@PreviewScreenSizes`, `@PreviewFontScale`, or your own annotation classes, from any project file), and per value of
+  a `@PreviewParameter` provider, up to its `limit`.
+- **Preview** above every preview function opens the preview and scrolls to that function's first preview.
 - Files without previews cost nothing: the file is checked for preview functions first (comments, strings and imports
   don't count), and nothing is parsed or rendered until it has one.
 - Each preview gets its own frame at a device size, scaled to fit the panel with the device's aspect ratio. Previews

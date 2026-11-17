@@ -2,7 +2,7 @@
     "name": "fast-compose-preview",
     "displayName": "Fast Compose Preview",
     "description": "Instant Jetpack Compose previews in VS Code. No compiler, no build, no waiting.",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "publisher": "fast-compose",
     "license": "Apache-2.0",
     "icon": "docs/images/logo.png",

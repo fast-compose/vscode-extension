@@ -73,33 +73,50 @@ import ma7moud3ly.fast.compose.interpreter.Registry
 import ma7moud3ly.fast.compose.ui.ComposeCode
 import ma7moud3ly.fast.compose.ui.FastComposeContent
 import ma7moud3ly.fast.compose.ui.PreviewConfig
-import ma7moud3ly.fast.compose.ui.previewConfig
-import ma7moud3ly.fast.compose.ui.rememberFullRegistry
+import ma7moud3ly.fast.compose.ui.PreviewEntry
+import ma7moud3ly.fast.compose.ui.previews
 
 /**
- * Lists every `@Preview` of [code], each in its own frame at [PreviewState.device]'s size, scaled by
+ * Every preview of [code]'s file ([previews]): one per `@Preview`, per `@Preview` of a multi-preview annotation such
+ * as `@PreviewLightDark`, and per value of a `@PreviewParameter` provider. Empty while the file doesn't parse; read
+ * again when the files it uses are loaded, since annotation classes and providers may be declared there. If reading
+ * them fails, each `@Preview` function gets one preview with default settings.
+ */
+@Composable
+fun rememberPreviews(code: ComposeCode, registry: Registry): List<PreviewEntry> {
+    val program = code.program
+    val dependencies = code.dependencies
+    return remember(program, dependencies, registry) {
+        if (program == null) return@remember emptyList()
+        runCatching { Interpreter(program, registry, dependencies = dependencies).previews(program) }.getOrElse {
+            program.previews.map { (function, _) -> PreviewEntry(function, PreviewConfig(name = function.name)) }
+        }
+    }
+}
+
+/**
+ * Lists [previews] of [code], each in its own frame at [PreviewState.device]'s size, scaled by
  * [PreviewState.zoom] or, with Fit, to the largest scale at which one device fits the panel. A preview without
  * `widthDp`/`heightDp` wraps its content up to the device size, so full screens get the whole device. Scaling changes
  * the density, not a picture: previews lay out in device dp, text stays sharp and clicks land where they should.
  * Names keep the panel's size. Each preview is centered in the panel's width, and one wider than the panel starts at
- * its left edge; the list scrolls both ways, and Ctrl + mouse wheel zooms. [PreviewState.reveal] scrolls to a preview.
+ * its left edge; the list scrolls both ways, and Ctrl + mouse wheel zooms. [PreviewState.reveal] scrolls to the first
+ * preview of a function.
  */
 @Composable
-fun DevicePreviews(state: PreviewState, code: ComposeCode, modifier: Modifier) {
-    val program = code.program
-    if (program == null) {
+fun DevicePreviews(
+    state: PreviewState,
+    code: ComposeCode,
+    registry: Registry,
+    previews: List<PreviewEntry>,
+    modifier: Modifier,
+) {
+    if (code.program == null || previews.isEmpty()) {
         Message(if (code.isLoading) "Loading…" else "Fix the errors to see the preview", modifier)
         return
     }
-    val registry = rememberFullRegistry()
-    val dependencies = code.dependencies
-    val previews = remember(program, dependencies, registry) {
-        val reader = Interpreter(program, registry, dependencies = dependencies)
-        program.previews.map { (function, annotation) ->
-            val config = runCatching { reader.previewConfig(function, annotation) }.getOrNull()
-            function.name to (config ?: PreviewConfig(name = function.name))
-        }
-    }
+    // The first preview of each function, which a Preview link above the function scrolls to.
+    val firsts = remember(previews) { previews.withIndex().distinctBy { it.value.function.name }.map { it.index } }
     BoxWithConstraints(modifier.clipToBounds().zoomOnCtrlWheel(state)) {
         val device = state.device
         val fit = minOf(
@@ -125,20 +142,23 @@ fun DevicePreviews(state: PreviewState, code: ComposeCode, modifier: Modifier) {
                 Modifier.widthIn(min = panelWidth).heightIn(min = panelHeight).padding(PADDING),
                 verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
             ) {
-                previews.forEachIndexed { index, (entry, config) ->
-                    key(entry, index) {
+                previews.forEachIndexed { index, preview ->
+                    val name = preview.function.name
+                    key(name, index) {
                         // Centered in the panel's visible width, so a wider preview doesn't push the others aside;
                         // a preview wider than the panel starts at its left edge.
                         Box(
                             Modifier
                                 .widthIn(min = panelWidth - PADDING * 2)
-                                .onPlaced {
-                                    val top = it.positionInParent().y.roundToInt()
-                                    if (tops[entry] != top) tops[entry] = top
-                                },
+                                .then(
+                                    if (index !in firsts) Modifier else Modifier.onPlaced {
+                                        val top = it.positionInParent().y.roundToInt()
+                                        if (tops[name] != top) tops[name] = top
+                                    },
+                                ),
                             contentAlignment = Alignment.TopCenter,
                         ) {
-                            DevicePreview(state, code, registry, entry, config, device, zoom)
+                            DevicePreview(state, code, registry, preview, device, zoom)
                         }
                     }
                 }
@@ -147,17 +167,20 @@ fun DevicePreviews(state: PreviewState, code: ComposeCode, modifier: Modifier) {
     }
 }
 
-/** One preview: its name, then [entry] in a frame of [device]'s size (or the `@Preview` size), scaled by [zoom]. */
+/**
+ * One preview: its name, then its function called with its arguments, in a frame of [device]'s size (or the
+ * `@Preview` size), scaled by [zoom].
+ */
 @Composable
 private fun DevicePreview(
     state: PreviewState,
     code: ComposeCode,
     registry: Registry,
-    entry: String,
-    config: PreviewConfig,
+    preview: PreviewEntry,
     device: PreviewDevice,
     zoom: Float,
 ) {
+    val config = preview.config
     Column {
         Text(
             config.title(),
@@ -188,7 +211,13 @@ private fun DevicePreview(
                     LocalInspectionMode provides true,
                     LocalPreviewWindowSize provides DpSize(width, height),
                 ) {
-                    FastComposeContent(code, entry = entry, registry = registry, resources = state.resources)
+                    FastComposeContent(
+                        code,
+                        entry = preview.function.name,
+                        registry = registry,
+                        resources = state.resources,
+                        arguments = preview.arguments,
+                    )
                 }
             }
         }
