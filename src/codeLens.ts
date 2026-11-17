@@ -1,7 +1,13 @@
 import * as vscode from "vscode";
 
-/** `@Preview`, or qualified as `@androidx.compose.ui.tooling.preview.Preview`. */
-const PREVIEW = /@(?:[\w.]+\.)?Preview\b/g;
+/**
+ * `@Preview`, qualified as `@androidx.compose.ui.tooling.preview.Preview`, or an annotation that may be a multi-preview
+ * one: a name with `Preview` in it, such as `@PreviewLightDark` or `@DevicePreviews`. Group 1 is the name.
+ */
+const PREVIEW = /@(?:\w+\.)*(\w*Preview\w*)\b/g;
+
+/** Annotations with `Preview` in their name that don't make previews. */
+const NOT_PREVIEWS = new Set(["PreviewParameter"]);
 
 /** The function a preview annotation belongs to, after the annotation's arguments and other annotations. */
 const FUNCTION = /^[^{}=]*?\bfun\s+(?:<[^>]*>\s*)?([A-Za-z_]\w*)\s*\(/;
@@ -10,8 +16,9 @@ const FUNCTION = /^[^{}=]*?\bfun\s+(?:<[^>]*>\s*)?([A-Za-z_]\w*)\s*\(/;
 const OTHER_DECLARATION = /\b(?:class|object|interface|val|var)\b/;
 
 /**
- * "Preview" above every `@Preview` function of a Kotlin file, once per function; it opens the preview and scrolls to
- * that function's preview. Annotations in comments, and on classes such as multi-preview annotations, are skipped.
+ * "Preview" above every function with a `@Preview` or multi-preview annotation in a Kotlin file, once per function;
+ * it opens the preview and scrolls to that function's first preview. Annotations in comments, on classes (such as
+ * the multi-preview annotation classes themselves) and `@PreviewParameter` are skipped.
  */
 export class PreviewCodeLens implements vscode.CodeLensProvider {
     provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
@@ -19,6 +26,7 @@ export class PreviewCodeLens implements vscode.CodeLensProvider {
         const lenses: vscode.CodeLens[] = [];
         const functions = new Set<string>();
         for (const match of text.matchAll(PREVIEW)) {
+            if (NOT_PREVIEWS.has(match[1])) continue;
             const start = match.index!;
             const line = document.lineAt(document.positionAt(start).line);
             const before = line.text.substring(0, document.positionAt(start).character).trim();

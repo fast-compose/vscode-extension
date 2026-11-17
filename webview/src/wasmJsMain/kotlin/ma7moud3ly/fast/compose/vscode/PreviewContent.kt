@@ -40,6 +40,7 @@ import kotlin.math.roundToInt
 import ma7moud3ly.fast.compose.bindings.resources.ResourceProvider
 import ma7moud3ly.fast.compose.interpreter.SourceProvider
 import ma7moud3ly.fast.compose.ui.rememberComposeCode
+import ma7moud3ly.fast.compose.ui.rememberFullRegistry
 
 /** A request to scroll to the preview of function [name]; each request is a new object, so a repeat scrolls again. */
 class Reveal(val name: String)
@@ -167,14 +168,17 @@ private fun FilePreview(
         val maxLogs = (maxHeight - MIN_PREVIEW_HEIGHT).coerceAtLeast(MIN_LOGS_HEIGHT)
         Column(Modifier.fillMaxSize()) {
             val program = code.program
+            val registry = rememberFullRegistry()
+            val previews = rememberPreviews(code, registry)
+            val noPreviews = program != null && !code.isLoading && previews.isEmpty()
             when {
                 crash != null -> Message(
                     "The preview crashed; see the logs. Edit the file or press Refresh to try again.",
                     Modifier.weight(1f).fillMaxWidth(),
                 )
 
-                program != null && program.previews.isEmpty() -> NoPreviews(path, Modifier.weight(1f).fillMaxWidth())
-                else -> DevicePreviews(state, code, Modifier.weight(1f).fillMaxWidth())
+                noPreviews -> NoPreviews(path, Modifier.weight(1f).fillMaxWidth())
+                else -> DevicePreviews(state, code, registry, previews, Modifier.weight(1f).fillMaxWidth())
             }
             // Shown or hidden only by the user, so the previews don't move as errors and output come and go.
             if (state.showLogs) {
@@ -194,7 +198,7 @@ private fun FilePreview(
             DeviceBar(
                 state,
                 code,
-                showZoom = crash == null && program?.previews?.isEmpty() != true,
+                showZoom = crash == null && !noPreviews,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -230,7 +234,7 @@ private val MIN_PREVIEW_HEIGHT = 80.dp
 
 @Composable
 private fun NoPreviews(path: String, modifier: Modifier) {
-    Message("No @Preview functions in ${path.substringAfterLast('/')}", modifier)
+    Message("No previews in ${path.substringAfterLast('/')}", modifier)
 }
 
 @Composable

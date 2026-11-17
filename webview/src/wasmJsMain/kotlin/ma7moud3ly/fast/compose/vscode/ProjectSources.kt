@@ -93,6 +93,10 @@ internal class ProjectSources(private val files: WorkspaceFiles) {
             return isProject
         }
 
+        /** Every file declaring [name] in [packageName], e.g. a class and a function of that name in two files. */
+        override suspend fun findAll(packageName: String, name: String): List<SourceFile> =
+            files.load { sources.findAll(packageName, name, roots(), from) }
+
         override suspend fun findExpect(packageName: String, name: String): SourceFile? =
             files.load { sources.findExpect(packageName, name, roots(), from) }
 

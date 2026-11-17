@@ -2,6 +2,13 @@
 
 Each version's section is the extension's change notes: one `- ` line per change.
 
+## 0.3.0
+
+- Fast Compose 0.3.0.
+- Multi-preview annotations: AndroidX's `@PreviewLightDark`, `@PreviewScreenSizes`, `@PreviewFontScale` and your own annotation classes annotated with `@Preview`s.
+- `@PreviewParameter`: one preview per value of the provider, up to `limit`.
+- Names declared in two files of a package, such as a `data class Message` and a `fun Message(…)`, load both.
+
 ## 0.2.0
 
 - First release: renders `@Preview` functions of the active Kotlin file as you type, with Fast Compose 0.2.0.

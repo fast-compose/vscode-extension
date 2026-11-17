@@ -3,7 +3,7 @@
 kotlin = "2.4.21"
 composeMultiplatform = "1.12.2"
 #common
-fastCompose = "0.2.0"
+fastCompose = "0.3.0"
 material3 = "1.12.0-alpha03"
 coil = "3.6.3"
 
